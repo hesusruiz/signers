@@ -21,18 +21,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/pterm/pterm"
 
 	ibftengine "github.com/ethereum/go-ethereum/consensus/istanbul/ibft/engine"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -45,8 +44,6 @@ import (
 
 var localNode = "http://127.0.0.1:22000"
 var regularNode = "http://15.236.0.91:22000"
-
-var Validators = map[common.Address]*ValInfo{}
 
 type ValInfo struct {
 	Operator   string `json:"operator"`
@@ -99,6 +96,10 @@ var enodes = []*ValInfo{
 	},
 }
 
+func clear() {
+	fmt.Print("\033[H\033[2J")
+}
+
 // sigHash returns the hash which is used as input for the Istanbul
 // signing. It is the hash of the entire header apart from the 65 byte signature
 // contained at the end of the extra data.
@@ -109,25 +110,22 @@ func sigHash(header *types.Header) (hash common.Hash) {
 	return hash
 }
 
-func toBlockNumArg(number *big.Int) string {
-	if number == nil {
+func toBlockNumArg(number int64) string {
+	if number == -1 {
 		return "latest"
 	}
-	pending := big.NewInt(-1)
-	if number.Cmp(pending) == 0 {
-		return "pending"
-	}
-	return hexutil.EncodeBig(number)
+	return fmt.Sprintf("0x%X", number)
 }
 
 type RedTNode struct {
-	cli    *ethclient.Client
-	rpccli *rpc.Client
-	ctx    context.Context
+	cli           *ethclient.Client
+	rpccli        *rpc.Client
+	ctx           context.Context
+	valSet        []common.Address
+	allValidators map[common.Address]*ValInfo
+	asProposer    map[common.Address]int
+	asSigner      map[common.Address]int
 }
-
-var asProposer = map[common.Address]int{}
-var asSigner = map[common.Address]int{}
 
 func NewRedTNode(url string) (*RedTNode, error) {
 	// Connect to Client
@@ -141,6 +139,32 @@ func NewRedTNode(url string) (*RedTNode, error) {
 	rt.cli = ethclient.NewClient(rpccli)
 	rt.ctx = context.Background()
 
+	// Load the current Validator set. It has to be refreshed in case
+	// a new Validators is added or removed (an infrequent event)
+	// Restarting the program loads the most recent Validator set
+	rt.valSet, err = rt.getValSet()
+
+	// Calculate the full validator list including the ones not currently in the valSet
+	// Initialise Validators map
+	rt.allValidators = make(map[common.Address]*ValInfo, len(enodes))
+	for _, item := range enodes {
+		en := enode.MustParse(item.Enode)
+		address := crypto.PubkeyToAddress(*en.Pubkey())
+
+		item.Address = address
+
+		rt.allValidators[address] = item
+	}
+
+	// Initialise the counters for validators/signers
+	rt.asProposer = map[common.Address]int{}
+	rt.asSigner = map[common.Address]int{}
+
+	for _, addr := range rt.valSet {
+		rt.asProposer[addr] = 0
+		rt.asSigner[addr] = 0
+	}
+
 	return rt, nil
 }
 
@@ -152,7 +176,64 @@ func (rt *RedTNode) RpcClient() *rpc.Client {
 	return rt.rpccli
 }
 
-func (rt *RedTNode) HeaderByNumber(number *big.Int) (*types.Header, error) {
+func (rt *RedTNode) InitializeStats(numBlocks int64) {
+
+	// Reset counters for all Validators
+	for _, addr := range rt.valSet {
+		rt.asProposer[addr] = 0
+		rt.asSigner[addr] = 0
+	}
+
+	// Short-circuit if no work
+	if numBlocks <= 0 {
+		return
+	}
+
+	// Get the current block header
+	header, err := rt.HeaderByNumber(-1)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+	currentNumber := header.Number.Int64()
+
+	// Calculate the ancient block where calculation starts
+	oldNumber := currentNumber - numBlocks
+
+	for i := oldNumber; i <= currentNumber; i++ {
+
+		// Get block header data
+		header, err = rt.HeaderByNumber(i)
+		if err != nil {
+			log.Fatal().Err(err).Msg("")
+		}
+
+		rt.updateStatisticsForBlock(header)
+
+	}
+
+}
+
+func (rt *RedTNode) updateStatisticsForBlock(header *types.Header) (author common.Address, signers []common.Address, err error) {
+
+	author, signers, err = signersFromBlock(header)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+
+	// Increment the counter for authors
+	rt.asProposer[author] += 1
+
+	// Increment counters for signers
+	for _, seal := range signers {
+		// Increment the counter of signatures
+		rt.asSigner[seal] += 1
+	}
+
+	return author, signers, err
+
+}
+
+func (rt *RedTNode) HeaderByNumber(number int64) (*types.Header, error) {
 	var head *types.Header
 
 	err := rt.rpccli.CallContext(rt.ctx, &head, "eth_getBlockByNumber", toBlockNumArg(number), false)
@@ -186,15 +267,12 @@ func (rt *RedTNode) Peers() ([]*p2p.PeerInfo, error) {
 	return ni, err
 }
 
-func (rt *RedTNode) Validators() ([]string, error) {
-	var vals []string
+func (rt *RedTNode) Validators() []common.Address {
+	return rt.valSet
+}
 
-	err := rt.rpccli.CallContext(rt.ctx, &vals, "istanbul_getValidators", toBlockNumArg(nil))
-	if err != nil {
-		log.Fatal().Err(err).Msg("")
-	}
-
-	return vals, nil
+func (rt *RedTNode) ValidatorInfo(validator common.Address) *ValInfo {
+	return rt.allValidators[validator]
 }
 
 func (rt *RedTNode) DisplayMyInfo() {
@@ -228,17 +306,23 @@ func (rt *RedTNode) DisplayPeersInfo() {
 
 }
 
-func (rt *RedTNode) DisplayValidatorsInfo() {
+func (rt *RedTNode) getValSet() ([]common.Address, error) {
 
-	validators, err := rt.Validators()
+	var vals []string
+
+	err := rt.rpccli.CallContext(rt.ctx, &vals, "istanbul_getValidators", toBlockNumArg(-1))
 	if err != nil {
-		log.Fatal().Err(err).Msg("")
+		return nil, err
 	}
-	out, err := json.MarshalIndent(validators, "", "  ")
-	if err != nil {
-		log.Fatal().Err(err).Msg("")
+
+	//	sort.Strings(vals)
+
+	valSet := make([]common.Address, len(vals))
+	for i, addrStr := range vals {
+		valSet[i] = common.HexToAddress(addrStr)
 	}
-	fmt.Printf("%v\n\n", string(out))
+
+	return valSet, nil
 
 }
 
@@ -271,11 +355,10 @@ func signersFromBlock(header *types.Header) (author common.Address, signers []co
 	return
 }
 
-func (rt *RedTNode) displaySignersForBlockNumber(number uint64, latestTimestamp uint64) uint64 {
+func (rt *RedTNode) displaySignersForBlockNumber(number int64, latestTimestamp uint64) uint64 {
 
-	// Get the current block
-	num := new(big.Int).SetUint64(number)
-	currentHeader, err := rt.HeaderByNumber(num)
+	// Get the block
+	currentHeader, err := rt.HeaderByNumber(number)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
@@ -283,52 +366,62 @@ func (rt *RedTNode) displaySignersForBlockNumber(number uint64, latestTimestamp 
 
 	elapsed := currentTimestamp - latestTimestamp
 
-	author, signers, err := signersFromBlock(currentHeader)
+	author, signers, err := rt.updateStatisticsForBlock(currentHeader)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
 
-	// Increment the counter for authors
-	asProposer[author] += 1
-
 	// Get the operator for the node
-	oper, ok := Validators[author]
-	if !ok {
-		fmt.Println("Address not found")
-	}
+	oper := rt.ValidatorInfo(author)
 
 	t := time.Unix(int64(currentTimestamp), 0)
 
-	fmt.Printf("Block %v (%v sec) %v\n", number, elapsed, t)
-	fmt.Printf("Author: %v (%v) (%v)\n", oper.Operator, asProposer[author], author)
+	pterm.Print(pterm.Bold.Sprintf("Block %v (%v sec) %v\n", number, elapsed, t))
+	pterm.Printf("Author: %v (%v) (%v)\n", oper.Operator, rt.asProposer[author], author)
 
 	var currentSigners = map[common.Address]bool{}
 
 	for _, seal := range signers {
-		// Increment the counter of signatures
-		asSigner[seal] += 1
-
 		currentSigners[seal] = true
-
 	}
 
-	fmt.Printf("  Author |  Signer  |       Name      Address\n")
-	//	fmt.Printf("_________________________________________________________________________________\n")
-	for _, item := range enodes {
+	// Print the title of the table
+	pterm.Printf("  Author |  Signer  |       Name      Address\n")
 
-		currentSignerStr := ""
-		if currentSigners[item.Address] {
-			currentSignerStr = "X"
+	for _, val := range rt.Validators() {
+
+		item := rt.ValidatorInfo(val)
+
+		authorCount := rt.asProposer[item.Address]
+		authorCountStr := pterm.Sprintf("%6v", authorCount)
+		if authorCount == 0 {
+			authorCountStr = pterm.FgRed.Sprintf("%6v", authorCount)
 		}
-		currentAuthorStr := ""
+
+		var currentAuthorStr string
 		if author.Hex() == item.Address.Hex() {
-			currentAuthorStr = "X"
+			currentAuthorStr = pterm.BgLightBlue.Sprint(pterm.Bold.Sprintf("%v %1v", authorCountStr, "X"))
+		} else {
+			currentAuthorStr = pterm.Bold.Sprintf("%v %1v", authorCountStr, " ")
 		}
 
-		fmt.Printf("%6v %1v | %6v %1v | %15v %v\n", asProposer[item.Address], currentAuthorStr, asSigner[item.Address], currentSignerStr, item.Operator, item.Address)
+		signerCount := rt.asSigner[item.Address]
+		signerCountStr := pterm.Sprintf("%6v", signerCount)
+		if signerCount == 0 {
+			signerCountStr = pterm.FgRed.Sprintf("%6v", signerCount)
+		}
+
+		var currentSignerStr string
+		if currentSigners[item.Address] {
+			currentSignerStr = pterm.BgLightBlue.Sprint(pterm.Bold.Sprintf("%v %1v", signerCountStr, "X"))
+		} else {
+			currentSignerStr = pterm.Bold.Sprintf("%v %1v", signerCountStr, " ")
+		}
+
+		pterm.Printf("%v | %v | %15v %v\n", currentAuthorStr, currentSignerStr, item.Operator, item.Address)
 
 	}
-	fmt.Printf("================================================================================\n")
+	pterm.Printf("================================================================================\n")
 
 	return currentTimestamp
 
@@ -343,19 +436,6 @@ func main() {
 		url = args[1]
 	}
 
-	// Initialise Validators map
-	for _, item := range enodes {
-		en := enode.MustParse(item.Enode)
-		address := crypto.PubkeyToAddress(*en.Pubkey())
-
-		item.Address = address
-
-		Validators[address] = item
-		asProposer[address] = 0
-		asSigner[address] = 0
-
-	}
-
 	// Connect to the RedT node
 	rt, err := NewRedTNode(url)
 	if err != nil {
@@ -363,12 +443,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialise statistics with historic info
+	rt.InitializeStats(100)
+
 	// Get the current block header info
-	latestHeader, err := rt.HeaderByNumber(nil)
+	latestHeader, err := rt.HeaderByNumber(-1)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
-	latestNumber := latestHeader.Number.Uint64()
+	latestNumber := latestHeader.Number.Int64()
+
+	oldNumber := latestNumber - 0
+
+	// Start from an old block
+	latestHeader, err = rt.HeaderByNumber(oldNumber)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+	latestNumber = latestHeader.Number.Int64()
+
 	latestTimestamp := latestHeader.Time
 
 	// Display info
@@ -380,11 +473,11 @@ func main() {
 		time.Sleep(2 * time.Second)
 
 		// Get the current block number
-		currentHeader, err := rt.HeaderByNumber(nil)
+		currentHeader, err := rt.HeaderByNumber(-1)
 		if err != nil {
 			log.Fatal().Err(err).Msg("")
 		}
-		currentNumber := currentHeader.Number.Uint64()
+		currentNumber := currentHeader.Number.Int64()
 
 		// Make sure we have advanced at least one block
 		if currentNumber == latestNumber {
