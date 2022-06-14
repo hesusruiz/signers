@@ -1,20 +1,3 @@
-// Copyright 2015 The go-ethereum Authors
-// This file is part of go-ethereum.
-//
-// go-ethereum is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// go-ethereum is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
-
-// bootnode runs a bootstrap node for the Ethereum Discovery Protocol.
 package main
 
 import (
@@ -22,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -31,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/hesusruiz/signers/client"
+	qtypes "github.com/hesusruiz/signers/types"
 	"github.com/pterm/pterm"
 
 	ibftengine "github.com/ethereum/go-ethereum/consensus/istanbul/ibft/engine"
@@ -40,10 +26,12 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	"github.com/rs/zerolog/log"
+
+	"github.com/urfave/cli/v2"
 )
 
+// The default node address used is a local one
 var localNode = "http://127.0.0.1:22000"
-var regularNode = "http://15.236.0.91:22000"
 
 type ValInfo struct {
 	Operator   string `json:"operator"`
@@ -125,6 +113,7 @@ type RedTNode struct {
 	allValidators map[common.Address]*ValInfo
 	asProposer    map[common.Address]int
 	asSigner      map[common.Address]int
+	spinner       *pterm.SpinnerPrinter
 }
 
 func NewRedTNode(url string) (*RedTNode, error) {
@@ -140,7 +129,7 @@ func NewRedTNode(url string) (*RedTNode, error) {
 	rt.ctx = context.Background()
 
 	// Load the current Validator set. It has to be refreshed in case
-	// a new Validators is added or removed (an infrequent event)
+	// a new Validator is added or removed (an infrequent event)
 	// Restarting the program loads the most recent Validator set
 	rt.valSet, err = rt.getValSet()
 
@@ -315,9 +304,27 @@ func (rt *RedTNode) getValSet() ([]common.Address, error) {
 		return nil, err
 	}
 
-	//	sort.Strings(vals)
+	// In order to have the same order as in the IBFT consensus algorithm,
+	// we have to sort addresses in string format by lexicographic order.
+	// But the hex strings to order should be in the checked address Ethereum format
+	// where some hex letters are uppercase and some are lowercase.
+	// This is important because the letter "E" goes before letter "a", for example
 
+	// First we convert the strings into Ethereum Addresses
 	valSet := make([]common.Address, len(vals))
+	for i, addrStr := range vals {
+		valSet[i] = common.HexToAddress(addrStr)
+	}
+
+	// Now convert them back into strings but in Ethereum format
+	for i := range vals {
+		vals[i] = valSet[i].String()
+	}
+
+	// Sort the resulting slice lexicographically
+	sort.Strings(vals)
+
+	// And finally get the slice with Addresses in the right order
 	for i, addrStr := range vals {
 		valSet[i] = common.HexToAddress(addrStr)
 	}
@@ -357,27 +364,54 @@ func signersFromBlock(header *types.Header) (author common.Address, signers []co
 
 func (rt *RedTNode) displaySignersForBlockNumber(number int64, latestTimestamp uint64) uint64 {
 
-	// Get the block
+	if rt.spinner != nil && rt.spinner.IsActive {
+		rt.spinner.Stop()
+	}
+
+	// Get the block timestamp with the specified number
 	currentHeader, err := rt.HeaderByNumber(number)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
 	currentTimestamp := currentHeader.Time
 
+	// Calculate the elapsed time with respect to the latest one we received
 	elapsed := currentTimestamp - latestTimestamp
 
+	// Update the statistics in memory
 	author, signers, err := rt.updateStatisticsForBlock(currentHeader)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
 
-	// Get the operator for the node
+	// Get the name of the node operator
 	oper := rt.ValidatorInfo(author)
+
+	// Determine the next node that should be proposer, according to the round-robin
+	// selection algorithm
+	var nextIndex int
+	for i := 0; i < len(rt.valSet); i++ {
+		if author == rt.valSet[i] {
+			nextIndex = (i + 1) % len(rt.valSet)
+			break
+		}
+	}
+	nextProposer := rt.valSet[nextIndex]
+
+	// Get the name of the node operator
+	nextProposerOperator := rt.ValidatorInfo(nextProposer).Operator
 
 	t := time.Unix(int64(currentTimestamp), 0)
 
-	pterm.Print(pterm.Bold.Sprintf("Block %v (%v sec) %v\n", number, elapsed, t))
-	pterm.Printf("Author: %v (%v) (%v)\n", oper.Operator, rt.asProposer[author], author)
+	// Build the header message, in red if block time was bad
+	msg := pterm.Sprintf("Block %v (%v sec) %v\n", number, elapsed, t)
+	if elapsed > 5 {
+		msg = pterm.Red(msg)
+	}
+	pterm.Print(pterm.Bold.Sprint(msg))
+
+	msg = pterm.Sprintf("Author: %v (%v) (%v)\n", oper.Operator, rt.asProposer[author], author)
+	pterm.Print(pterm.Bold.Sprint(msg))
 
 	var currentSigners = map[common.Address]bool{}
 
@@ -418,23 +452,19 @@ func (rt *RedTNode) displaySignersForBlockNumber(number int64, latestTimestamp u
 			currentSignerStr = pterm.Bold.Sprintf("%v %1v", signerCountStr, " ")
 		}
 
-		pterm.Printf("%v | %v | %15v %v\n", currentAuthorStr, currentSignerStr, item.Operator, item.Address)
+		pterm.Printf("%v | %v | %12v %v\n", currentAuthorStr, currentSignerStr, item.Operator, item.Address)
 
 	}
-	pterm.Printf("================================================================================\n")
+	pterm.Printf("=============================================================================\n")
+
+	rt.spinner, _ = pterm.DefaultSpinner.Start("Waiting for ", nextProposerOperator, " to create next block ...")
+	rt.spinner.RemoveWhenDone = true
 
 	return currentTimestamp
 
 }
 
-func main() {
-
-	var url = localNode
-	args := os.Args
-
-	if len(args) > 1 {
-		url = args[1]
-	}
+func monitorSigners(url string, numBlocks int64, refresh int64) {
 
 	// Connect to the RedT node
 	rt, err := NewRedTNode(url)
@@ -443,8 +473,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	rt.spinner, _ = pterm.DefaultSpinner.Start("Calculating statistics for ", numBlocks, " blocks ...")
+	rt.spinner.RemoveWhenDone = true
+
 	// Initialise statistics with historic info
-	rt.InitializeStats(100)
+	rt.InitializeStats(numBlocks)
+
+	rt.spinner.Stop()
 
 	// Get the current block header info
 	latestHeader, err := rt.HeaderByNumber(-1)
@@ -464,13 +499,13 @@ func main() {
 
 	latestTimestamp := latestHeader.Time
 
-	// Display info
+	// Display  for the first time
 	rt.displaySignersForBlockNumber(latestNumber, latestTimestamp)
 
 	for {
 
 		// Sleep before getting the next one
-		time.Sleep(2 * time.Second)
+		time.Sleep(time.Duration(refresh) * time.Second)
 
 		// Get the current block number
 		currentHeader, err := rt.HeaderByNumber(-1)
@@ -492,6 +527,165 @@ func main() {
 		// Update the latest block number that we processed
 		latestNumber = currentNumber
 
+	}
+
+}
+
+func monitorSignersWS(url string, numBlocks int64, refresh int64) {
+
+	// Connect to the RedT node
+	rt, err := NewRedTNode(url)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+		os.Exit(1)
+	}
+
+	qc, err := client.NewQuorumClient(url)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+	defer qc.Stop()
+
+	inputCh := make(chan qtypes.RawHeader)
+
+	err = qc.SubscribeChainHead(inputCh)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+
+	latestTimestamp := uint64(0)
+
+	isFirst := true
+
+	for {
+		select {
+		case header := <-inputCh:
+			if isFirst {
+				// Do not display, we just get its timestamp
+				// Get the block timestamp
+				currentHeader, err := rt.HeaderByNumber(int64(header.Number))
+				if err != nil {
+					// Log the error and retry with next block
+					log.Error().Err(err).Msg("")
+					continue
+				}
+				latestTimestamp = currentHeader.Time
+				isFirst = false
+				continue
+			}
+			latestTimestamp = rt.displaySignersForBlockNumber(int64(header.Number), latestTimestamp)
+		}
+	}
+
+}
+
+func displayPeersInfo(url string) {
+
+	// Connect to the RedT node
+	rt, err := NewRedTNode(url)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+		os.Exit(1)
+	}
+
+	rt.DisplayPeersInfo()
+
+}
+
+func main() {
+
+	// Define commands, parse command line arguments and start execution
+	app := &cli.App{
+		EnableBashCompletion:   true,
+		UseShortOptionHandling: true,
+		Version:                "v0.1",
+		Compiled:               time.Now(),
+		Authors: []*cli.Author{
+			{
+				Name:  "Jesus Ruiz",
+				Email: "hesus.ruiz@gmail.com",
+			},
+		},
+	}
+
+	app.Usage = "Monitoring of block signers activity for the Alastria RedT blockchain network"
+
+	// define the monitor command via Web socket
+	monitorWSCMD := &cli.Command{
+		Name:      "monitor",
+		Usage:     "monitor the signers activity connecting via Websocket to the blockchain node",
+		UsageText: "signers monitor [webSocketsUrl]",
+
+		Action: func(c *cli.Context) error {
+			url := localNode
+			if c.NArg() > 0 {
+				url = c.Args().Get(0)
+			}
+			numBlocks := c.Int64("blocks")
+			refresh := c.Int64("refresh")
+			monitorSignersWS(url, numBlocks, refresh)
+			return nil
+		},
+	}
+
+	// define the monitor command
+	monitorCMD := &cli.Command{
+		Name:      "poll",
+		Usage:     "monitor the signers activity via polling the node periodically",
+		UsageText: "signers poll [options] [httpUrl]",
+		Flags: []cli.Flag{
+			&cli.Int64Flag{
+				Name:    "blocks",
+				Value:   10,
+				Usage:   "number of blocks in the past to process",
+				Aliases: []string{"b"},
+			},
+			&cli.Int64Flag{
+				Name:    "refresh",
+				Value:   2,
+				Usage:   "refresh interval for presentation. All blocks are processed independent of this value",
+				Aliases: []string{"r"},
+			},
+		},
+
+		Action: func(c *cli.Context) error {
+			url := localNode
+			if c.NArg() > 0 {
+				url = c.Args().Get(0)
+			}
+			numBlocks := c.Int64("blocks")
+			refresh := c.Int64("refresh")
+			monitorSigners(url, numBlocks, refresh)
+			return nil
+		},
+	}
+
+	// define the monitor command
+	displayPeersCMD := &cli.Command{
+		Name:  "peers",
+		Usage: "display peers information",
+
+		Action: func(c *cli.Context) error {
+			url := localNode
+			if c.NArg() > 0 {
+				url = c.Args().Get(0)
+			}
+			displayPeersInfo(url)
+			return nil
+		},
+	}
+
+	app.Commands = []*cli.Command{
+		monitorWSCMD,
+		monitorCMD,
+		displayPeersCMD,
+	}
+
+	// Run the application
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+		os.Exit(1)
 	}
 
 }
