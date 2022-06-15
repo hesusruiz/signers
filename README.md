@@ -2,14 +2,14 @@
 `signers` is a program to monitor the block generation and signing activity of the Validator nodes in the Alastria RedT blockchain network.
 
 The program is a standalone executable with no dependencies (it is implemented in Go), is multiplatform and runs on any standard terminal window.
-It uses the standard JSON-RPC APis of Quorum and it can connect to the node with several mechanisms:
+It uses the standard JSON-RPC APIs of Quorum and it can connect to the node with several mechanisms:
 
 - WebSockets in event-driven mode if the blockchain node has it enabled and accessible for the `signers` program. Access can be remote or local in the same server where the blockchain node is running (e.g., running `signers` via SSH).
 - HTTP in polling mode. Access to the node can also be remote or local. The polling interval can be configured via command line parameter. Independent from the polling period, no blocks are missed because the program retrieves all blocks generated between intervals.
 - Local Unix socket (this only works in Unix systems). The program has to be run with enough privileges to access the Unix socket from the blockchain node.
 
-The program accumulates counters with the number of blocks that where proposed and sealed bay each Validator since the `signers` program was started.
-Optionally, you can specify a number of blocks in the past and the program will accumulate statistics for those blocks before displaying the current ones.
+The program accumulates counters with the number of blocks that where proposed and sealed by each Validator since the `signers` program was started.
+Optionally, you can specify a number of blocks in the past and the program will accumulate statistics for those blocks before beginning to display the current ones.
 
 The help for the program is below ('signers help`):
 
