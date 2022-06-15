@@ -403,15 +403,19 @@ func (rt *RedTNode) displaySignersForBlockNumber(number int64, latestTimestamp u
 
 	t := time.Unix(int64(currentTimestamp), 0)
 
-	// Build the header message, in red if block time was bad
-	msg := pterm.Sprintf("Block %v (%v sec) %v\n", number, elapsed, t)
-	if elapsed > 5 {
-		msg = pterm.Red(msg)
-	}
-	pterm.Print(pterm.Bold.Sprint(msg))
+	blockInfo := pterm.DefaultBox.WithTitle("Block")
 
-	msg = pterm.Sprintf("Author: %v (%v) (%v)\n", oper.Operator, rt.asProposer[author], author)
-	pterm.Print(pterm.Bold.Sprint(msg))
+	// Build the header message, in red if block time was bad
+	headerMsg1 := pterm.Sprintf("%v (%v sec) %v\n", number, elapsed, t)
+	if elapsed > 5 {
+		headerMsg1 = pterm.Red(headerMsg1)
+	}
+
+	// The author info
+	headerMsg2 := pterm.Sprintf("Author: %v (%v) (%v)\n", oper.Operator, rt.asProposer[author], author)
+
+	// Gas limit and number of txs
+	headerMsg3 := pterm.Sprintf("GasLimit: %v GasUsed: %v\n", currentHeader.GasLimit, currentHeader.GasUsed)
 
 	var currentSigners = map[common.Address]bool{}
 
@@ -419,17 +423,22 @@ func (rt *RedTNode) displaySignersForBlockNumber(number int64, latestTimestamp u
 		currentSigners[seal] = true
 	}
 
+	tableMsg := ""
+
 	// Print the title of the table
-	pterm.Printf("  Author |  Signer  |       Name      Address\n")
+	tableMsg += pterm.Sprintf("\n  Author |  Signer  |       Name      Address")
 
 	for _, val := range rt.Validators() {
 
 		item := rt.ValidatorInfo(val)
 
 		authorCount := rt.asProposer[item.Address]
-		authorCountStr := pterm.Sprintf("%6v", authorCount)
+
+		var authorCountStr string
 		if authorCount == 0 {
 			authorCountStr = pterm.FgRed.Sprintf("%6v", authorCount)
+		} else {
+			authorCountStr = pterm.Sprintf("%6v", authorCount)
 		}
 
 		var currentAuthorStr string
@@ -440,9 +449,12 @@ func (rt *RedTNode) displaySignersForBlockNumber(number int64, latestTimestamp u
 		}
 
 		signerCount := rt.asSigner[item.Address]
-		signerCountStr := pterm.Sprintf("%6v", signerCount)
+
+		var signerCountStr string
 		if signerCount == 0 {
 			signerCountStr = pterm.FgRed.Sprintf("%6v", signerCount)
+		} else {
+			signerCountStr = pterm.Sprintf("%6v", signerCount)
 		}
 
 		var currentSignerStr string
@@ -452,10 +464,11 @@ func (rt *RedTNode) displaySignersForBlockNumber(number int64, latestTimestamp u
 			currentSignerStr = pterm.Bold.Sprintf("%v %1v", signerCountStr, " ")
 		}
 
-		pterm.Printf("%v | %v | %12v %v\n", currentAuthorStr, currentSignerStr, item.Operator, item.Address)
+		tableMsg += pterm.Sprintf("\n%v | %v | %12v %v", currentAuthorStr, currentSignerStr, item.Operator, item.Address)
 
 	}
-	pterm.Printf("=============================================================================\n")
+
+	blockInfo.Println(headerMsg1 + headerMsg2 + headerMsg3 + tableMsg)
 
 	rt.spinner, _ = pterm.DefaultSpinner.Start("Waiting for ", nextProposerOperator, " to create next block ...")
 	rt.spinner.RemoveWhenDone = true
@@ -596,6 +609,15 @@ func main() {
 
 	// Define commands, parse command line arguments and start execution
 	app := &cli.App{
+		Usage: "Monitoring of block signers activity for the Alastria RedT blockchain network",
+		//		UsageText: "",
+		ArgsUsage: "Pepe Juan",
+
+		UsageText: `signers [global options] [command [command options]] nodeURL
+			where 'nodeURL' is the address of the Quorum node.
+			It supports both HTTP and WebSockets endpoints.
+			By default it uses WebSockets and for HTTP you have to use the 'poll' subcommand.`,
+
 		EnableBashCompletion:   true,
 		UseShortOptionHandling: true,
 		Version:                "v0.1",
@@ -606,15 +628,15 @@ func main() {
 				Email: "hesus.ruiz@gmail.com",
 			},
 		},
-	}
 
-	app.Usage = "Monitoring of block signers activity for the Alastria RedT blockchain network"
-
-	// define the monitor command via Web socket
-	monitorWSCMD := &cli.Command{
-		Name:      "monitor",
-		Usage:     "monitor the signers activity connecting via Websocket to the blockchain node",
-		UsageText: "signers monitor [webSocketsUrl]",
+		Flags: []cli.Flag{
+			&cli.Int64Flag{
+				Name:    "blocks",
+				Value:   10,
+				Usage:   "number of blocks in the past to process",
+				Aliases: []string{"b"},
+			},
+		},
 
 		Action: func(c *cli.Context) error {
 			url := localNode
@@ -631,7 +653,7 @@ func main() {
 	// define the monitor command
 	monitorCMD := &cli.Command{
 		Name:      "poll",
-		Usage:     "monitor the signers activity via polling the node periodically",
+		Usage:     "monitor the signers activity via HTTP polling",
 		UsageText: "signers poll [options] [httpUrl]",
 		Flags: []cli.Flag{
 			&cli.Int64Flag{
@@ -676,7 +698,6 @@ func main() {
 	}
 
 	app.Commands = []*cli.Command{
-		monitorWSCMD,
 		monitorCMD,
 		displayPeersCMD,
 	}
