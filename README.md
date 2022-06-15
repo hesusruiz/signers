@@ -11,7 +11,7 @@ It uses the standard JSON-RPC APIs of Quorum and it can connect to the node with
 The program accumulates counters with the number of blocks that where proposed and sealed by each Validator since the `signers` program was started.
 Optionally, you can specify a number of blocks in the past and the program will accumulate statistics for those blocks before beginning to display the current ones.
 
-The help for the program is below ('signers help`):
+The help for the program is below (`signers help`):
 
 ```
 NAME:
