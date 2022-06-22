@@ -179,7 +179,7 @@ func main() {
 
 	historyCMD := &cli.Command{
 		Name:      "history",
-		Usage:     "download blockchain headers into SQLite database",
+		Usage:     "download blockchain headers into SQLite database, from current towards genesis",
 		UsageText: "signers poll [options]",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -219,7 +219,7 @@ func main() {
 
 	historyForwardCMD := &cli.Command{
 		Name:      "historyfw",
-		Usage:     "download blockchain headers into SQLite database",
+		Usage:     "download blockchain headers into SQLite database, from newest stored towards current",
 		UsageText: "signers poll [options]",
 		Flags: []cli.Flag{
 			&cli.StringFlag{

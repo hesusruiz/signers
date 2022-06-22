@@ -35,8 +35,8 @@ COMMANDS:
    peers      display peers information
    logfilter  display filtered log information
    serve      run a web server to display signers behaviour in real time
-   history    download blockchain headers into SQLite database
-   historyfw  download blockchain headers into SQLite database
+   history    download blockchain headers into SQLite database, from current towards genesis
+   historyfw  download blockchain headers into SQLite database, from newest stored towards current
    help, h    Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
