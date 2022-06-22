@@ -34,7 +34,9 @@ COMMANDS:
    poll       monitor the signers activity via HTTP polling
    peers      display peers information
    logfilter  display filtered log information
-   serve      run a web server to display signers behaviour
+   serve      run a web server to display signers behaviour in real time
+   history    download blockchain headers into SQLite database
+   historyfw  download blockchain headers into SQLite database
    help, h    Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
