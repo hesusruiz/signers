@@ -2,7 +2,7 @@ module github.com/hesusruiz/signers
 
 go 1.18
 
-replace github.com/ethereum/go-ethereum => ./quorum
+replace github.com/ethereum/go-ethereum => ../quorum
 
 require (
 	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf

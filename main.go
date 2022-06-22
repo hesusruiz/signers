@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/labstack/gommon/log"
 
 	lrucache "github.com/hashicorp/golang-lru"
 	"github.com/hesusruiz/signers/history"
@@ -209,8 +209,11 @@ func main() {
 			url := c.String("url")
 			dsn := c.String("dsn")
 			stats := c.Bool("stats")
-			history.HistoryBackwards(url, dsn, stats)
-			return nil
+			err := history.HistoryBackwards(url, dsn, stats)
+			if err != nil {
+				log.Error(err)
+			}
+			return err
 		},
 	}
 
@@ -246,8 +249,11 @@ func main() {
 			url := c.String("url")
 			dsn := c.String("dsn")
 			stats := c.Bool("stats")
-			history.HistoryForward(url, dsn, stats)
-			return nil
+			err := history.HistoryForward(url, dsn, stats)
+			if err != nil {
+				log.Error(err)
+			}
+			return err
 		},
 	}
 
@@ -264,7 +270,7 @@ func main() {
 	// Run the application
 	err = app.Run(os.Args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("")
+		log.Error(err)
 		os.Exit(1)
 	}
 

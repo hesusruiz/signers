@@ -40,7 +40,7 @@ func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Con
 	return err
 }
 
-func ServeSigners(url string, ip string, port int64, headerCache lrucache.Cache) {
+func ServeSigners(url string, ip string, port int64, headerCache *lrucache.Cache) {
 
 	serverIP := fmt.Sprintf("%v:%v", ip, port)
 
@@ -89,7 +89,7 @@ var (
 	upgrader = websocket.Upgrader{}
 )
 
-func serveViaWS(c echo.Context, url string, headerCache lrucache.Cache) error {
+func serveViaWS(c echo.Context, url string, headerCache *lrucache.Cache) error {
 
 	var rendered bytes.Buffer
 	var data map[string]any

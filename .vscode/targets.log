@@ -8,7 +8,7 @@ make: *** No rule to make target 'all'.  Stop.
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Wed Jun 22 14:27:52 2022
+# Make data base, printed on Wed Jun 22 15:39:11 2022
 
 # Variables
 
@@ -17,7 +17,7 @@ make: *** No rule to make target 'all'.  Stop.
 # automatic
 ?F = $(notdir $?)
 # environment
-WSLENV = VSCODE_WSL_EXT_LOCATION/up
+WSLENV = ELECTRON_RUN_AS_NODE/w:WT_SESSION::WT_PROFILE_ID
 # default
 .SHELLFLAGS := -c
 # environment
@@ -37,7 +37,7 @@ SHELL = /bin/sh
 # environment
 VSCODE_NLS_CONFIG = {"locale":"en","availableLanguages":{}}
 # environment
-_ = /home/jesus/.vscode-server/bin/30d9c6cd9483b2cc586687151bcbcd635f373630/node
+_ = /mnt/c/Users/hesus/AppData/Local/Programs/Microsoft VS Code/bin/code
 # makefile
 MAKEFILE_LIST := 
 # 'override' directive
@@ -69,7 +69,7 @@ VSCODE_LOG_STACK = false
 # environment
 PYENV_ROOT = /home/jesus/.pyenv
 # environment
-VSCODE_IPC_HOOK_CLI = /mnt/wslg/runtime-dir/vscode-ipc-9e5db760-d084-46fa-92e0-007345fd4fbb.sock
+VSCODE_IPC_HOOK_CLI = /mnt/wslg/runtime-dir/vscode-ipc-33a43cad-3da2-4a7a-954f-ea31cf8a73e7.sock
 # default
 .FEATURES := target-specific order-only second-expansion else-if shortest-stem undefine oneshell archives jobserver output-sync check-symlink load
 # environment
@@ -91,9 +91,11 @@ PWD = /home/jesus/gosrc/signers
 # environment
 SSH_AGENT_PID = 288
 # environment
-WSL_INTEROP = /run/WSL/2106_interop
+WSL_INTEROP = /run/WSL/18507_interop
 # environment
 PULSE_SERVER = /mnt/wslg/PulseServer
+# environment
+WT_SESSION = 51a20d89-e111-421b-8928-93cc4b382823
 # environment
 GOMODCACHE = /home/jesus/go/pkg/mod
 # environment
@@ -117,7 +119,7 @@ MAKE = $(MAKE_COMMAND)
 # default
 MAKECMDGOALS := all
 # environment
-SHLVL = 0
+SHLVL = 1
 # default
 MAKE_VERSION := 4.2.1
 # environment
@@ -125,7 +127,7 @@ USER = jesus
 # makefile
 .DEFAULT_GOAL := 
 # environment
-NAME = T495S-JRM
+NAME = Code
 # automatic
 %D = $(patsubst %/,%,$(dir $%))
 # environment
@@ -150,6 +152,8 @@ NVM_DIR = /home/jesus/.nvm
 +F = $(notdir $+)
 # environment
 VSCODE_HANDLES_SIGPIPE = true
+# environment
+WT_PROFILE_ID = {07b52e3e-de2c-5db4-bd2d-ba144ed6c273}
 # default
 MAKEFILES := 
 # automatic
@@ -177,7 +181,7 @@ VSCODE_EXTHOST_WILL_SEND_SOCKET = true
 # environment
 WSL_DISTRO_NAME = Ubuntu-20.04
 # variable set hash-table stats:
-# Load=82/1024=8%, Rehash=0, Collisions=5/104=5%
+# Load=84/1024=8%, Rehash=0, Collisions=5/106=5%
 
 # Pattern-specific Variable Values
 
@@ -243,6 +247,6 @@ GNUmakefile:
 # strcache performance: lookups = 33 / hit rate = 9%
 # hash-table stats:
 # Load=30/8192=0%, Rehash=0, Collisions=1/33=3%
-# Finished Make data base on Wed Jun 22 14:27:52 2022
+# Finished Make data base on Wed Jun 22 15:39:11 2022
 
  
