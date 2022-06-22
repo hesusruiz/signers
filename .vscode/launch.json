@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${fileDirname}",
-            "args": ["ws", "ws://15.236.0.91:22000"]
+            "args": ["serve"]
         }
     ]
 }

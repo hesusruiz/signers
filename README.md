@@ -18,7 +18,7 @@ NAME:
    signers - Monitoring of block signers activity for the Alastria RedT blockchain network
 
 USAGE:
-   signers [global options] [command [command options]] nodeURL
+   signers [global options] command [command options]
          where 'nodeURL' is the address of the Quorum node.
          It supports both HTTP and WebSockets endpoints.
          By default it uses WebSockets and for HTTP you have to use the 'poll' subcommand.
@@ -30,27 +30,14 @@ AUTHOR:
    Jesus Ruiz <hesus.ruiz@gmail.com>
 
 COMMANDS:
-   poll     monitor the signers activity via HTTP polling
-   peers    display peers information
-   help, h  Shows a list of commands or help for one command
+   monitor    monitor the signers activity via WebSockets events
+   poll       monitor the signers activity via HTTP polling
+   peers      display peers information
+   logfilter  display filtered log information
+   serve      run a web server to display signers behaviour
+   help, h    Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --blocks value, -b value  number of blocks in the past to process (default: 10)
-   --help, -h                show help (default: false)
-   --version, -v             print the version (default: false)
-```
-
-And this is the help for the `poll` subcommand (`signers help poll`):
-
-
-```
-NAME:
-   signers poll - monitor the signers activity via HTTP polling
-
-USAGE:
-   signers poll [options] [httpUrl]
-
-OPTIONS:
-   --blocks value, -b value   number of blocks in the past to process (default: 10)
-   --refresh value, -r value  refresh interval for presentation. All blocks are processed independent of this value (default: 2)
+   --help, -h     show help (default: false)
+   --version, -v  print the version (default: false)
 ```

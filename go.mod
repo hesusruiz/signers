@@ -2,26 +2,47 @@ module github.com/hesusruiz/signers
 
 go 1.18
 
-replace github.com/ethereum/go-ethereum => ../../github/quorum
+replace github.com/ethereum/go-ethereum => ./quorum
 
 require (
+	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
 	github.com/ethereum/go-ethereum v0.0.0-00010101000000-000000000000
+	github.com/labstack/gommon v0.3.1
+	github.com/mattn/go-sqlite3 v1.14.13
 	github.com/rs/zerolog v1.27.0
+	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.7.2
 	github.com/urfave/cli/v2 v2.8.1
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 )
 
 require (
+	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
+	github.com/Microsoft/go-winio v0.5.2 // indirect
+	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/atomicgo/cursor v0.0.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
+	github.com/docker/distribution v2.8.1+incompatible // indirect
+	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-units v0.4.0 // indirect
+	github.com/gogo/protobuf v1.1.1 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/gookit/color v1.5.0 // indirect
+	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/valyala/fasttemplate v1.2.1 // indirect
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
+	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -54,6 +75,7 @@ require (
 	github.com/jpmorganchase/quorum-hello-world-plugin-sdk-go v0.0.0-20200210211148-57f99f69eeb3 // indirect
 	github.com/jpmorganchase/quorum-security-plugin-sdk-go v0.0.0-20200714173835-22a319bb78ce // indirect
 	github.com/karalabe/usb v0.0.0-20190919080040-51dc0efba356 // indirect
+	github.com/labstack/echo/v4 v4.7.2
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
