@@ -15,12 +15,16 @@ import (
 )
 
 // The default node address used is a local one
-var localNode = "ws://127.0.0.1:22000"
+var localNodeHTTP = "http://127.0.0.1:22000"
+var localNodeWS = "ws://127.0.0.1:22001"
 
 func main() {
 
 	// The LRU cache to support many simultaneous clients
 	headerCache, err := lrucache.New(100)
+	if err != nil {
+		panic(err)
+	}
 
 	// Define commands, parse command line arguments and start execution
 	app := &cli.App{
@@ -32,7 +36,7 @@ func main() {
 
 		EnableBashCompletion:   true,
 		UseShortOptionHandling: true,
-		Version:                "v0.1",
+		Version:                "v0.2",
 		Compiled:               time.Now(),
 		Authors: []*cli.Author{
 			{
@@ -55,10 +59,10 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "url",
-				Value:    localNode,
-				Usage:    "url of the endpoint of blockchain node",
+				Value:    localNodeWS,
+				Usage:    "ws url of the endpoint of blockchain node",
 				Aliases:  []string{"u"},
-				Required: true,
+				Required: false,
 			},
 			&cli.Int64Flag{
 				Name:    "blocks",
@@ -83,10 +87,10 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "url",
-				Value:    localNode,
+				Value:    localNodeHTTP,
 				Usage:    "url of the endpoint of blockchain node",
 				Aliases:  []string{"u"},
-				Required: true,
+				Required: false,
 			},
 			&cli.Int64Flag{
 				Name:    "blocks",
@@ -118,10 +122,10 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "url",
-				Value:    localNode,
+				Value:    localNodeHTTP,
 				Usage:    "url of the endpoint of blockchain node",
 				Aliases:  []string{"u"},
-				Required: true,
+				Required: false,
 			},
 		},
 
@@ -149,15 +153,15 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "url",
-				Value:    localNode,
+				Value:    localNodeWS,
 				Usage:    "url of the endpoint of blockchain node",
 				Aliases:  []string{"u"},
-				Required: true,
+				Required: false,
 			},
 			&cli.StringFlag{
 				Name:    "ip",
 				Value:   "0.0.0.0",
-				Usage:   "IP address of th eweb server",
+				Usage:   "IP address of the web server",
 				Aliases: []string{"i"},
 			},
 			&cli.Int64Flag{
@@ -184,7 +188,7 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "url",
-				Value:    "http://127.0.0.1:22000",
+				Value:    localNodeHTTP,
 				Usage:    "url of the endpoint of blockchain node",
 				Aliases:  []string{"u"},
 				Required: false,
@@ -224,7 +228,7 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "url",
-				Value:    "http://127.0.0.1:22000",
+				Value:    localNodeHTTP,
 				Usage:    "url of the endpoint of blockchain node",
 				Aliases:  []string{"u"},
 				Required: false,
