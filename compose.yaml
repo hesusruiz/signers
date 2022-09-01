@@ -1,0 +1,44 @@
+# Compose file for monitoring the Alastria RedT Validators activity
+name: redtmon
+services:
+  signers:
+    build: .
+    restart: unless-stopped
+    container_name: "signers"
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+    ports:
+      - "8080:8080"
+    volumes:
+      - "../sqlblockchain:/root/sqlitedata"
+    command: ["serve", "-u", "ws://172.31.44.212:22001"]
+
+  caddy:
+    image: caddy:2.5.1-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+    # Expose both ports so automatic certificate provisioning works
+    # But the only one working is the 443, as requests to 80 will be redirected to the 443
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - $PWD/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+# Caddy requires write access to two locations: a data directory, and a configuration directory.
+# While it's not necessary to persist the files stored in the configuration directory, it can be convenient.
+# However, it's very important to persist the data directory.
+# Caddy stores there TLS certificates, private keys, OCSP staples, and other necessary information.
+# Defining the data volume as external makes sure 'docker compose down' does not delete the volume.
+# You may need to create it manually using docker 'volume create caddy_data'.
+volumes:
+  caddy_data:
+    external: true
+  caddy_config:
