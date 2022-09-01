@@ -6,7 +6,6 @@ import (
 
 	"github.com/labstack/gommon/log"
 
-	lrucache "github.com/hashicorp/golang-lru"
 	"github.com/hesusruiz/signers/history"
 	"github.com/hesusruiz/signers/logfilter"
 	"github.com/hesusruiz/signers/redt"
@@ -19,12 +18,6 @@ var localNodeHTTP = "http://127.0.0.1:22000"
 var localNodeWS = "ws://127.0.0.1:22001"
 
 func main() {
-
-	// The LRU cache to support many simultaneous clients
-	headerCache, err := lrucache.New(100)
-	if err != nil {
-		panic(err)
-	}
 
 	// Define commands, parse command line arguments and start execution
 	app := &cli.App{
@@ -176,7 +169,7 @@ func main() {
 			url := c.String("url")
 			ip := c.String("ip")
 			port := c.Int64("port")
-			serve.ServeSigners(url, ip, port, headerCache)
+			serve.ServeSigners(url, ip, port)
 			return nil
 		},
 	}
@@ -272,7 +265,7 @@ func main() {
 	}
 
 	// Run the application
-	err = app.Run(os.Args)
+	err := app.Run(os.Args)
 	if err != nil {
 		log.Error(err)
 		os.Exit(1)
