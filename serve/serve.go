@@ -16,7 +16,6 @@ import (
 
 	ethertypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/gorilla/websocket"
-	lrucache "github.com/hashicorp/golang-lru"
 )
 
 type Template struct {
@@ -40,7 +39,12 @@ func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Con
 	return err
 }
 
-func ServeSigners(url string, ip string, port int64, headerCache *lrucache.Cache) {
+type Server struct {
+	rt *redt.RedTNode
+}
+
+func ServeSigners(url string, ip string, port int64) {
+	var err error
 
 	serverIP := fmt.Sprintf("%v:%v", ip, port)
 
@@ -49,12 +53,17 @@ func ServeSigners(url string, ip string, port int64, headerCache *lrucache.Cache
 		templates: template.Must(template.New("table.html").Parse(tableHTML)),
 	}
 
+	// Create the server struct
+	server := &Server{}
+
 	// Connect to the RedT node
 	rt, err := redt.NewRedTNode(url)
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
 	}
+
+	server.rt = rt
 
 	// Create an instance of web server
 	e := echo.New()
@@ -73,7 +82,7 @@ func ServeSigners(url string, ip string, port int64, headerCache *lrucache.Cache
 
 	// Calling to this route upgrades http to a WebSocket connection
 	e.GET("/ws", func(c echo.Context) error {
-		return serveViaWS(c, url, headerCache)
+		return server.serveViaWS(c, url)
 	})
 
 	// The root serves an HTML with Javascript to start WebSocket from the browser
@@ -81,7 +90,7 @@ func ServeSigners(url string, ip string, port int64, headerCache *lrucache.Cache
 		return renderIndex(c, rt)
 	})
 
-	// Start the server listening on th especified ip:port
+	// Start the server listening on the specified ip:port
 	e.Logger.Fatal(e.Start(serverIP))
 }
 
@@ -89,7 +98,7 @@ var (
 	upgrader = websocket.Upgrader{}
 )
 
-func serveViaWS(c echo.Context, url string, headerCache *lrucache.Cache) error {
+func (s *Server) serveViaWS(c echo.Context, url string) error {
 
 	var rendered bytes.Buffer
 	var data map[string]any
@@ -101,13 +110,6 @@ func serveViaWS(c echo.Context, url string, headerCache *lrucache.Cache) error {
 	defer ws.Close()
 
 	t := template.Must(template.New("table.html").Parse(tableHTML))
-
-	// Connect to the RedT node
-	rt, err := redt.NewRedTNode(url)
-	if err != nil {
-		log.Fatal(err)
-		os.Exit(1)
-	}
 
 	qc, err := client.NewQuorumClient(url)
 	if err != nil {
@@ -129,62 +131,47 @@ func serveViaWS(c echo.Context, url string, headerCache *lrucache.Cache) error {
 	isFirst := true
 
 	for {
-		select {
-		case rawheader := <-inputCh:
 
-			var currentHeader *ethertypes.Header
+		// Block receiving headers from the channel
+		rawheader := <-inputCh
 
-			// Try to get the header from the cache
-			cachedHeader, _ := headerCache.Get(rawheader.Number)
+		var currentHeader *ethertypes.Header
 
-			if cachedHeader == nil {
-
-				// Get the current header from the node
-				currentHeader, err = rt.HeaderByNumber(int64(rawheader.Number))
-				if err != nil {
-					// Log the error and retry with next block
-					log.Error(err)
-					return err
-				}
-
-				// Add it to the cache
-				headerCache.Add(rawheader.Number, currentHeader)
-
-			} else {
-
-				// Perform the type cast
-				currentHeader = cachedHeader.(*ethertypes.Header)
-
-			}
-
-			if isFirst {
-				// Do not display, we just get its timestamp to start statistics
-				latestTimestamp = currentHeader.Time
-				isFirst = false
-
-				// Wait for the next block
-				continue
-			}
-
-			// Gest the signer data and accumulated statistics
-			data, latestTimestamp = rt.SignersForHeader(currentHeader, latestTimestamp)
-
-			// Format the data into an HTML table
-			rendered.Reset()
-			err = t.ExecuteTemplate(&rendered, "table.html", data)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-
-			// Send the HTML table to the client via the WebSocket connection
-			err = ws.WriteMessage(websocket.TextMessage, rendered.Bytes())
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-
+		// Get the full header, because the raw one does not have the info we need
+		currentHeader, err = s.rt.HeaderByNumber(int64(rawheader.Number))
+		if err != nil {
+			// Log the error and retry with next block
+			log.Error(err)
+			return err
 		}
+
+		if isFirst {
+			// Do not display, we just get its timestamp to start statistics
+			latestTimestamp = currentHeader.Time
+			isFirst = false
+
+			// Wait for the next block
+			continue
+		}
+
+		// Get the signer data and accumulated statistics
+		data, latestTimestamp = s.rt.SignersForHeader(currentHeader, latestTimestamp)
+
+		// Format the data into an HTML table
+		rendered.Reset()
+		err = t.ExecuteTemplate(&rendered, "table.html", data)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		// Send the HTML table to the client via the WebSocket connection
+		err = ws.WriteMessage(websocket.TextMessage, rendered.Bytes())
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
 	}
 
 }
