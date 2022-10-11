@@ -9,7 +9,7 @@ RUN git clone https://github.com/ConsenSys/quorum.git
 RUN git clone https://github.com/hesusruiz/signers.git
 
 WORKDIR /usr/src/signers
-RUN go mod download && go mod verify
+RUN go mod tidy & go mod download && go mod verify
 
 RUN go build -v -o signers .
 

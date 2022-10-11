@@ -22,7 +22,6 @@ import (
 	"github.com/pterm/pterm"
 
 	ibftengine "github.com/ethereum/go-ethereum/consensus/istanbul/ibft/engine"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rlp"
 	lrucache "github.com/hashicorp/golang-lru"
@@ -80,9 +79,9 @@ var enodes = []*ValInfo{
 // sigHash returns the hash which is used as input for the Istanbul
 // signing. It is the hash of the entire header apart from the 65 byte signature
 // contained at the end of the extra data.
-func sigHash(header *types.Header) (hash common.Hash) {
+func sigHash(header *ethertypes.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
-	rlp.Encode(hasher, types.IstanbulFilteredHeader(header, false))
+	rlp.Encode(hasher, ethertypes.IstanbulFilteredHeader(header, false))
 	hasher.Sum(hash[:0])
 	return hash
 }
@@ -210,7 +209,7 @@ func (rt *RedTNode) InitializeStats(numBlocks int64) {
 
 }
 
-func (rt *RedTNode) UpdateStatisticsForBlock(header *types.Header) (author common.Address, signers []common.Address, err error) {
+func (rt *RedTNode) UpdateStatisticsForBlock(header *ethertypes.Header) (author common.Address, signers []common.Address, err error) {
 
 	author, signers, err = SignersFromBlock(header)
 	if err != nil {
@@ -240,8 +239,8 @@ func (rt *RedTNode) UpdateStatisticsForBlock(header *types.Header) (author commo
 
 }
 
-func (rt *RedTNode) HeaderByNumber(number int64) (*types.Header, error) {
-	var head *types.Header
+func (rt *RedTNode) HeaderByNumber(number int64) (*ethertypes.Header, error) {
+	var head *ethertypes.Header
 
 	// Try to get the header from the cache
 	cachedHeader, _ := rt.headerCache.Get(number)
@@ -387,10 +386,10 @@ func (rt *RedTNode) getValSet() ([]common.Address, error) {
 
 }
 
-func SignersFromBlock(header *types.Header) (author common.Address, signers []common.Address, err error) {
+func SignersFromBlock(header *ethertypes.Header) (author common.Address, signers []common.Address, err error) {
 
 	// Retrieve the signature from the header extra-data
-	extra, err := types.ExtractIstanbulExtra(header)
+	extra, err := ethertypes.ExtractIstanbulExtra(header)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
@@ -536,7 +535,7 @@ type SignerData struct {
 	Signers  []string
 }
 
-func (rt *RedTNode) SignerDataForBlockNumber(number int64) (*types.Header, *SignerData, error) {
+func (rt *RedTNode) SignerDataForBlockNumber(number int64) (*ethertypes.Header, *SignerData, error) {
 
 	data := &SignerData{}
 
@@ -562,7 +561,7 @@ func (rt *RedTNode) SignerDataForBlockNumber(number int64) (*types.Header, *Sign
 
 }
 
-func (rt *RedTNode) SignersForHeader(header *types.Header, latestTimestamp uint64) (map[string]any, uint64) {
+func (rt *RedTNode) SignersForHeader(header *ethertypes.Header, latestTimestamp uint64) (map[string]any, uint64) {
 
 	data := make(map[string]any)
 
