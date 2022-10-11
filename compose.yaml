@@ -5,23 +5,13 @@ services:
     build: .
     restart: unless-stopped
     container_name: "signers"
-    deploy:
-      resources:
-        limits:
-          memory: 400M
     ports:
       - "8080:8080"
-    volumes:
-      - "../sqlblockchain:/root/sqlitedata"
-    command: ["serve", "-u", "ws://172.31.44.212:22001"]
+    command: ["serve", "-u", "ws://15.236.0.91:22001"]
 
   caddy:
     image: caddy:2.5.1-alpine
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 400M
     # Expose both ports so automatic certificate provisioning works
     # But the only one working is the 443, as requests to 80 will be redirected to the 443
     ports:

@@ -98,19 +98,23 @@ var (
 	upgrader = websocket.Upgrader{}
 )
 
+// serveViaWS is the HTTP server handler for WebSocket communication
 func (s *Server) serveViaWS(c echo.Context, url string) error {
 
 	var rendered bytes.Buffer
 	var data map[string]any
 
+	// Upgrade the plain HTTP connection to WebSockets
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		return err
 	}
 	defer ws.Close()
 
+	// Prepare the template for the HTML Table with the block info
 	t := template.Must(template.New("table.html").Parse(tableHTML))
 
+	// Connect to the Blockchain node at the specified URL
 	qc, err := client.NewQuorumClient(url)
 	if err != nil {
 		log.Error(err)
@@ -118,21 +122,24 @@ func (s *Server) serveViaWS(c echo.Context, url string) error {
 	}
 	defer qc.Stop()
 
+	// Subscribe to receive notifications when new blocks are added to the blockchain
+	// Each notification is received as a Header in the inputCh channel
 	inputCh := make(chan types.RawHeader)
-
 	err = qc.SubscribeChainHead(inputCh)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
 
+	// Initialize the timestamp to calculate elapsed time between blocks
 	latestTimestamp := uint64(0)
 
+	// We will start calculating statistics (eg. elapsed time) on the second block
 	isFirst := true
 
 	for {
 
-		// Block receiving headers from the channel
+		// We block here until a new header is received on the channel
 		rawheader := <-inputCh
 
 		var currentHeader *ethertypes.Header

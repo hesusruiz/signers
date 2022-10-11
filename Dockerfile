@@ -9,13 +9,12 @@ RUN git clone https://github.com/ConsenSys/quorum.git
 RUN git clone https://github.com/hesusruiz/signers.git
 
 WORKDIR /usr/src/signers
-RUN go mod tidy
-RUN go build -o signers .
+RUN go mod download && go mod verify
 
-FROM ubuntu:20.04
+RUN go build -v -o signers .
 
-WORKDIR /usr/local/bin
-
-COPY --from=builder /usr/src/signers/signers /usr/local/bin/
-
-ENTRYPOINT [ "signers" ]
+# Now copy it into a minimal distroless base image
+FROM gcr.io/distroless/base-debian11
+WORKDIR /
+COPY --from=builder /usr/src/signers/signers /
+ENTRYPOINT [ "/signers" ]
