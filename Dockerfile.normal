@@ -1,0 +1,31 @@
+FROM golang:1.18 as builder
+
+# The signers program needs the Quorum sources in a
+# sibling directory, because its go.mod uses the replace directive.
+# This is because Quorum is a fork of go-ethereum.
+
+WORKDIR /usr/src
+
+# Download quorum sources in subdirectory quorum
+RUN git clone https://github.com/ConsenSys/quorum.git
+
+# Download signers sources in subdirectory signers
+RUN git clone https://github.com/hesusruiz/signers.git
+
+# Build the program in the signers subdirectory
+WORKDIR /usr/src/signers
+RUN go mod tidy
+RUN go build -o signers .
+
+# Create a slim image just copying the binary from the builder stage
+FROM ubuntu:20.04
+
+WORKDIR /usr/local/bin
+
+COPY --from=builder /usr/src/signers/signers /usr/local/bin/
+
+# By default the signers web server listens to the 8080 port
+EXPOSE 8080
+
+# Running the container without arguments will display the help automatically
+ENTRYPOINT [ "signers" ]
